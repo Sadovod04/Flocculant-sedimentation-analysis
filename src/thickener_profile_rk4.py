@@ -1,6 +1,21 @@
+"""Vertical solids-concentration profile in the thickener (RK4 variant).
+
+Integrates the 1-D settling/consolidation ODE from the mud line upward with a
+fixed-step Runge-Kutta 4 scheme, then evaluates the overflow clarity (OFC)
+regression. Standalone: all constants are defined at the top of the file.
+Figure -> figures/, concentration profile -> outputs/.
+"""
+import os
+
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless-safe
 import matplotlib.pyplot as plt
-from openpyxl.workbook import Workbook
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIG_DIR = os.path.join(HERE, os.pardir, "figures")
+OUT_DIR = os.path.join(HERE, os.pardir, "outputs")
+
 height_step = 0.3
 coneHeight = 1.35  # м высота конуса
 cylinderHeight = 1  #
@@ -230,11 +245,9 @@ print(Solution[len(Solution) - 1])
 
 import pandas as pd
 
-# Create a DataFrame
-df = pd.DataFrame(Solution)
-
-# Export the DataFrame to an Excel file
-df.to_excel('output.xlsx', index=False)
+os.makedirs(OUT_DIR, exist_ok=True)
+pd.DataFrame({"concentration": Solution, "height_m": Ox}).to_csv(
+    os.path.join(OUT_DIR, "concentration_profile_rk4.csv"), index=False)
 
 plt.plot(Solution[0:4000], Ox[0:4000])
 plt.xlabel('Концентрация')
@@ -242,6 +255,8 @@ plt.ylabel('Высота, м')
 plt.gca().invert_yaxis()
 plt.title('Распределение концентрации по высоте')
 plt.grid()
-plt.show()
+os.makedirs(FIG_DIR, exist_ok=True)
+plt.savefig(os.path.join(FIG_DIR, "concentration_profile_rk4.png"), dpi=120, bbox_inches="tight")
+print("saved figure -> figures/concentration_profile_rk4.png")
 
 

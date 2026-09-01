@@ -1,3 +1,9 @@
+"""Sodium balance across a 5-stage red-mud wash train (Bayer process).
+
+The counter-current stage balances form a linear system A c = b that is solved
+directly with ``numpy.linalg.solve``; the wash efficiency (degree of Na2O
+removal) follows from the first-stage concentration.
+"""
 import numpy as np
 
 c0 = 1.527                              #концентрация NaO2 в жидкой фазе шламовой пульпы сгустителя, г/с
@@ -20,11 +26,10 @@ left_side = np.array([[summ_of_h2o+V_liq,summ_of_h2o*(-1),0,0,0],
                       [0,0,0,V_liq,(summ_of_h2o+V_liq)*(-1)]])
 right_side = np.array([c0*100*V_liq, 0,0,0,(consumption_of_sudge_h2o * C_sudge_h2o + consumption_of_circus_h2o * C_circus_h2o)*(-1)])
 
-rez = np.linalg.inv(left_side).dot(right_side) #вычисляет обратную матрицу, а затем результат
-# умножается на вектор правой части, чтобы получить решения.
+rez = np.linalg.solve(left_side, right_side)  # прямое решение системы A c = b
 
 mass=['c1', 'c2', 'c3', 'c4', 'c5']
-for i in range(4):
+for i in range(len(mass)):
     print(mass[i],' = ', round(rez[i],3), 'г/л')
 
 #определим степень отмывки шлама

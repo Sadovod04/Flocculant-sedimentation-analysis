@@ -1,3 +1,9 @@
+"""Overlay the measured batch-settling curve with two model predictions.
+
+The three series were sampled on different time grids; the model curves are
+linearly resampled onto the measurement time axis before plotting. The figure
+is written to ``figures/settling_curves.png``.
+"""
 x=[0, 1, 2, 2.42, 3.15, 4.15, 5, 5.55, 6, 7, 8, 9, 10,
               10.5, 11, 12, 12.5, 13, 14, 14.5, 15, 15.5, 16, 16.5, 17, 18, 19, 20, 20.3,
               21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 42, 44, 46, 48, 50]
@@ -112,9 +118,37 @@ y_1=[
 72.03006204,
 70.68356129,
 69.36258585]
+import os
+import matplotlib
+matplotlib.use("Agg")  # headless-safe
 import matplotlib.pyplot as plt
-plt.plot(x, y,y_1)
-plt.plot(x, y,y_2)
-plt.ylabel("Масса")
-plt.xlabel("Время")
-plt.show()
+
+FIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "figures")
+
+
+def _against_time(series):
+    """Model arrays were sampled on a finer grid than the measurements;
+    interpolate them onto ``x`` so every curve shares one time axis."""
+    idx = [i * (len(x) - 1) / (len(series) - 1) for i in range(len(series))]
+    return [
+        _interp(t, idx, series) for t in range(len(x))
+    ]
+
+
+def _interp(pos, idx, series):
+    for j in range(1, len(idx)):
+        if idx[j] >= pos:
+            f = (pos - idx[j - 1]) / (idx[j] - idx[j - 1])
+            return series[j - 1] + f * (series[j] - series[j - 1])
+    return series[-1]
+
+
+plt.plot(x, y, "ko-", label="Эксперимент", markersize=3)
+plt.plot(x, _against_time(y_1), "b-", label="Модель 1")
+plt.plot(x, _against_time(y_2), "r-", label="Модель 2")
+plt.ylabel("Высота раздела, см")
+plt.xlabel("Время, мин")
+plt.legend()
+os.makedirs(FIG_DIR, exist_ok=True)
+plt.savefig(os.path.join(FIG_DIR, "settling_curves.png"), dpi=120, bbox_inches="tight")
+print("saved figure -> figures/settling_curves.png")

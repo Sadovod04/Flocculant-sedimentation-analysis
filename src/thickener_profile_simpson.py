@@ -1,36 +1,41 @@
-import sqlite3
+"""Vertical solids-concentration profile in the thickener (Simpson variant).
+
+Same 1-D settling/consolidation ODE as ``thickener_profile_rk4.py`` but
+integrated with a composite Simpson rule. Plant constants come from
+``config.py``; the mean floc diameter is read from the JSON produced by
+``floc_population_balance.py`` (run that first). Figure -> figures/.
+"""
+import json
+import os
+import sys
+
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless-safe
 import matplotlib.pyplot as plt
-from scipy.special import logsumexp
 
-connection = sqlite3.connect("database.db")
-cursor = connection.cursor()
-connection_2 = sqlite3.connect("tasks.db")
-print(connection.total_changes)
-cursor_2 = connection_2.cursor()
-# получаем лист
-coneHeight_db = cursor.execute("SELECT coneHeight FROM constants ORDER BY coneHeight DESC LIMIT 1").fetchall()
-cylinderHeight_db = cursor.execute(
-    "SELECT cylinderHeight FROM constants ORDER BY cylinderHeight DESC LIMIT 1").fetchall()
-Qufeed_db = cursor.execute("SELECT Qufeed FROM constants ORDER BY Qufeed DESC LIMIT 1").fetchall()
-Qunderfl_db = cursor.execute("SELECT Qunderfl FROM constants ORDER BY Qunderfl DESC LIMIT 1").fetchall()
-Fifeed_db = cursor.execute("SELECT Fifeed FROM constants ORDER BY Fifeed DESC LIMIT 1").fetchall()
-psolid_db = cursor.execute("SELECT psolid FROM constants ORDER BY psolid DESC LIMIT 1").fetchall()
-pfluid_db = cursor.execute("SELECT pfluid FROM constants ORDER BY pfluid DESC LIMIT 1").fetchall()
-muliqour_db = cursor.execute("SELECT muliqour FROM constants ORDER BY muliqour DESC LIMIT 1").fetchall()
-Mean_diameter = cursor_2.execute("SELECT Mean_diameter FROM Tasks ORDER BY Mean_diameter").fetchall()
-# забираем значение
-coneHeight = coneHeight_db[0][0]
-cylinderHeight = cylinderHeight_db[0][0]
-Qufeed = Qufeed_db[0][0]
-Qunderfl = Qunderfl_db[0][0]
-Fifeed = Fifeed_db[0][0]
-psolid = psolid_db[0][0]
-pfluid = pfluid_db[0][0]
-muliqour = muliqour_db[0][0]
-Mean_diameter = Mean_diameter[0][0]
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir))
+import config
 
-print(Mean_diameter)
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIG_DIR = os.path.join(HERE, os.pardir, "figures")
+
+coneHeight = config.CONE_HEIGHT
+cylinderHeight = config.CYLINDER_HEIGHT
+Qufeed = config.FEED_FLOW
+Qunderfl = config.UNDERFLOW
+Fifeed = config.FEED_SOLID_FRACTION
+psolid = config.SOLID_DENSITY
+pfluid = config.LIQUOR_DENSITY
+muliqour = config.LIQUOR_VISCOSITY
+
+_diam_file = os.path.join(HERE, os.pardir, config.MEAN_DIAMETER_FILE)
+try:
+    Mean_diameter = json.load(open(_diam_file, encoding="utf-8"))["mean_floc_diameter_m"]
+except FileNotFoundError:
+    sys.exit(f"{_diam_file} not found - run src/floc_population_balance.py first")
+
+print("mean floc diameter:", Mean_diameter)
 ## расчет геометрии сгустителя
 
 # расчет площади для  высоты
@@ -156,8 +161,6 @@ def FCC_fun(qtv_from, c, c_out, fbk, a, eps1):  # функция для расч
 
 # -------------------------------------------
 # методом Симпсона
-import sympy as sp
-
 
 def fbk_fun(c, Cmax, v, n):
     if c.any() < Cmax:
@@ -239,18 +242,17 @@ for i in range(1, n_steps):
     x[i] = x[i - 1] + h
 
 # Вывод результатов
-print(c)
-print(x)
+print("concentration:", c)
+print("height:", x)
 
-# Построение графика
-import matplotlib.pyplot as plt
-
-plt.plot(c*100, x)
+plt.plot(c * 100, x)
 plt.ylim(bottom=0)
-plt.xlabel('Высота (см)')
-plt.ylabel('Концентрация')
+plt.xlabel('Концентрация, %')
+plt.ylabel('Высота, см')
 plt.gca().invert_yaxis()
 plt.title('Распределение концентрации по высоте')
 plt.grid()
-plt.show()
+os.makedirs(FIG_DIR, exist_ok=True)
+plt.savefig(os.path.join(FIG_DIR, "concentration_profile_simpson.png"), dpi=120, bbox_inches="tight")
+print("saved figure -> figures/concentration_profile_simpson.png")
 

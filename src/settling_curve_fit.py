@@ -1,12 +1,20 @@
+"""Fit a two-exponential relaxation model to a batch-settling curve.
+
+Interface height h(t) is modelled as a sum of two decaying exponentials; the
+fast term (a1, T1) is fixed from the early slope and ``curve_fit`` recovers the
+slow term (a2, T2), which characterises the consolidation stage.
+"""
 import numpy as np
 from scipy.optimize import curve_fit
+
 
 def func(t, a2, T2):
     a1 = 110
     T1 = 104.5
     return 1 + a1 * np.exp(-t / T1) + a2 * np.exp(-t / T2)
 
-# Пример данных
+
+# Измеренная кривая осаждения: время (мин) и высота раздела (см)
 t = np.array([0,1,2,2.42,3.15,4.15,5,5.55,6,7,8,9,10,
                   10.5,11,12,12.5,13,14,14.5,15,15.5,16,16.5,17,18,19,20,20.3,
                   21,22,23,24,25,26,27,28,29 ,30,31,32,33,34,35,36,37,38,39,40,42,44,46,48,50])

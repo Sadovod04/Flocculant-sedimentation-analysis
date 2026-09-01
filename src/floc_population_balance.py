@@ -1,49 +1,45 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.io as sio
-import scipy.stats as stats
-import pandas as pd
+"""Population-balance model of flocculated particles in the feedwell pipe.
+
+Aggregation and fragmentation of fractal flocs are integrated over 20 size
+classes with ``scipy.integrate.odeint``; the output is the volume-weighted
+mean floc diameter (de Brouckere mean), which feeds the thickener settling
+model in ``thickener_profile_simpson.py``.
+
+The result is written to ``data/mean_floc_diameter.json`` instead of the old
+binary SQLite file, so it is human-readable and diff-friendly.
+"""
+import json
 import math
-from scipy.interpolate import interp1d
+import os
+
+import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless-safe
+import matplotlib.pyplot as plt
+import pandas as pd
 import scipy.integrate
-import sqlite3
 
-# Устанавливаем соединение с базой данных
-connection = sqlite3.connect('tasks.db')
-cursor = connection.cursor()
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(HERE, os.pardir, "data")
+FIG_DIR = os.path.join(HERE, os.pardir, "figures")
+os.makedirs(FIG_DIR, exist_ok=True)
 
-# Создаем таблицу Tasks
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS Tasks (
-id INTEGER PRIMARY KEY,
-Liquor_viscosity INTEGER ,
-Particle_density INTEGER ,
-surface_area INTEGER ,
-Flocculant_dosage INTEGER ,
-Feed_solid_concentration INTEGER ,
-Liquor_density INTEGER ,
-Pipe_flow_rate INTEGER ,
-Well_inner_diameter INTEGER ,
-Well_height INTEGER ,
-Simulation_run_time INTEGER ,
-Mean_diameter REAL 
-)
-''')
-
-# Задаем данные распределения частиц по размерам (размеры в микрометрах и кумулятивные доли)
-df = pd.read_csv("PSD_disc.csv", sep=";")
+# Данные распределения частиц по размерам (мкм и кумулятивные доли, %)
+df = pd.read_csv(os.path.join(DATA_DIR, "particle_size_distribution.csv"), sep=";")
 particle_sizes = df['mkm'].to_list()
 percentages = df['%'].to_list()
 
 def plot_cumulative_curve(particle_sizes, percentages):
     cumulative_percentages = np.cumsum(percentages)
     
+    plt.figure()
     plt.plot(particle_sizes, cumulative_percentages, marker='o')
-    plt.xlabel('Размер частиц')
+    plt.xlabel('Размер частиц, мкм')
     plt.ylabel('Кумулятивный процент')
     plt.title('Кумулятивная кривая размеров частиц')
     plt.grid(True)
-    plt.show()
+    plt.savefig(os.path.join(FIG_DIR, "psd_cumulative.png"), dpi=120, bbox_inches="tight")
+    plt.close()
     return cumulative_percentages
 
 plot_cumulative_curve(particle_sizes, percentages)
@@ -70,13 +66,13 @@ y_N = np.zeros_like(x)
 for z_score, percentage in gaussian_values:
     y_N += percentage * np.exp(-0.5 * (x - mean)**2 / std_dev**2) / (std_dev * np.sqrt(2*np.pi))
 
+plt.figure()
 plt.plot(x, y_N, 'r', label='Исходные данные')
 plt.xlabel('Значение')
 plt.ylabel('Плотность вероятности')
 plt.title('Нормальное гауссовское распределение')
-plt.show()
-print(len(x))
-print(len(y_N))
+plt.savefig(os.path.join(FIG_DIR, "psd_gaussian.png"), dpi=120, bbox_inches="tight")
+plt.close()
 
 
 def odefunfik1(t, N):
@@ -249,21 +245,22 @@ N = scipy.integrate.odeint(odefunfik1, MM[:20], np.arange(0, 20), tfirst=True)
 chisl=np.zeros(20)
 znam=np.zeros(20)
 mean_diameter=np.zeros(20)
+plt.figure()
 for i in range(1,20):
     plt.plot(N[i], label='График ' + str(i))
-    # Рассчитываем средний диаметр частиц по де Брукеру
+    # Средний диаметр частиц по де Брукеру
     mean_diameter[i] = np.mean(N[i])
     chisl[i]=mean_diameter[i]**4
     znam[i]=mean_diameter[i]**3
-    df=pd.DataFrame(N)
-    df.to_excel('./ts.xlsx')
 plt.title('Распределение частиц по размерам', fontsize=14)
 plt.xlim(0)
 plt.ylim(0)
-plt.show()
+plt.savefig(os.path.join(FIG_DIR, "floc_size_evolution.png"), dpi=120, bbox_inches="tight")
+plt.close()
 mean=round(sum(chisl)/sum(znam),5)
 print("Средний диаметр частиц:", mean)
-cursor.execute('INSERT INTO Tasks (Mean_diameter) VALUES (?)', (mean,))
-connection.commit()
-# Закрываем соединение
-connection.close()
+
+out_path = os.path.join(DATA_DIR, "mean_floc_diameter.json")
+with open(out_path, "w", encoding="utf-8") as fh:
+    json.dump({"mean_floc_diameter_m": mean}, fh, indent=2)
+print("saved ->", out_path)

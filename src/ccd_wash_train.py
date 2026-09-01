@@ -1,4 +1,11 @@
+"""Counter-current decantation (CCD) wash train - analytic solution.
+
+Given the leach feed rate, recovery and the wash-liquor ratio, computes the
+metal concentration in each CCD thickener stage and the resulting wash
+efficiency. All quantities are steady-state.
+"""
 import math
+
 F= 174 #массовый расход руды на выщелачивание т/ч
 P = 0.01 #Доля раствора/металла в руде/концентрате
 E= 0.8#Эффективность извлечения при выщелачивании (с учетом 1 = 100%)
